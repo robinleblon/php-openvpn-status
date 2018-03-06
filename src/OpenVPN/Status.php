@@ -87,6 +87,9 @@ class Status {
             if ($client) {
                 $client->vpnIp = $ip;
                 $client->routingSince = $dateTime;
+                if (strpos($ip, '/') !== false) {
+                    $client->networks = $client->networks.$ip.' ';
+		            }
             }
         }
     }

@@ -10,6 +10,7 @@ class Client {
     public $bytesSent;
     public $connectedSince;
     public $routingSince;
+    public $networks;
 
     private $destTimeZone;
 
@@ -48,6 +49,11 @@ class Client {
                 'name' => 'Routing Since',
                 'icon' => 'random',
                 'value' => $this->dateFormat($this->routingSince),
+            ],
+            'networks' => [
+                'name' => 'Routed Networks',
+                'icon' => 'transfer',
+                'value' => $this->networks,
             ],
         ];
     }
