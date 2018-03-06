@@ -7,6 +7,7 @@ class Status {
     private $updated;
     private $clients;
     private $stats;
+    private $statusVersion;
 
     private $srcTimeZone;
 
@@ -16,13 +17,28 @@ class Status {
 
     public function parse () {
         $contents = $this->contents;
+        
+        // Determine version
+        if (substr($contents, 0, 5) === 'TITLE') {
+            $statusVersion = 2;
+        } else {
+            $statusVersion = 1;
+        }
 
-        preg_match('/OpenVPN CLIENT LIST(.*)Common.*Connected Since(.*)ROUTING TABLE.*Virtual.*Last Ref(.*)GLOBAL STATS(.*)END/s', $contents, $matches);
+        if ($statusVersion === 1) {
+            preg_match('/OpenVPN CLIENT LIST(.*)Common.*Connected Since(.*)ROUTING TABLE.*Virtual.*Last Ref(.*)GLOBAL STATS(.*)END/s', $contents, $matches);
+            $this->setUpdated($this->parseUpdated($matches[1]));
+            $this->setClients($this->parseClients($matches[2]));
+            $this->parseRouting($matches[3]);
+            $this->setStats(preg_split('/\n|\r\n?/', trim($matches[4])));
+        } else {
+            preg_match_all('/TITLE.*2017(.*)HEADER,CLIENT_LIST.*Username(.*)HEADER,ROUTING_TABLE.*\(time_t\)(.*)GLOBAL_STATS,(.*)END/s', $contents, $matches);
+            $this->setUpdated($this->parseUpdated($matches[1][0]));
+            $this->setClients($this->parseClients($matches[2][0]));
+            $this->parseRouting($matches[3][0]);
+            $this->setStats(preg_split('/\n|\r\n?/', trim($matches[4][0])));
+        }
 
-        $this->setUpdated($this->parseUpdated($matches[1]));
-        $this->setClients($this->parseClients($matches[2]));
-        $this->parseRouting($matches[3]);
-        $this->setStats(preg_split('/\n|\r\n?/', trim($matches[4])));
     }
 
     /**
@@ -31,11 +47,24 @@ class Status {
      */
     private function parseUpdated ($string) {
         $updated = explode(',', trim($string));
-        $updated = array_pop($updated);
+        if ($this->statusVersion === 1) {
+            $updated = array_pop($updated);
+        } else {
+            $updated = $updated[1];
+        }
+        
         return new \DateTime($updated, clone($this->srcTimeZone));
     }
 
     private function parseClients ($string) {
+      
+        if ($this->statusVersion === 1) {
+            $i = $j = 0;
+        } else {
+            $i = 1;
+            $j = 2; 
+        }
+
         $clientLines = preg_split('/\n|\r\n?/', trim($string));
         $clients = array();
 
@@ -50,17 +79,17 @@ class Status {
             }
 
             // Name
-            $client->name = $fields[0];
+            $client->name = $fields[0+$i];
 
             // IP and Port
-            preg_match('/(.*):([\d]+)/', $fields[1], $matches);
+            preg_match('/(.*):([\d]+)/', $fields[1+$i], $matches);
             $client->realIp = $matches[1];
             $client->realPort = $matches[2];
 
             // Other Fields
-            $client->bytesReceived = $fields[2];
-            $client->bytesSent = $fields[3];
-            $client->connectedSince = new \DateTime($fields[4], clone($this->srcTimeZone));
+            $client->bytesReceived = $fields[2+$j];
+            $client->bytesSent = $fields[3+$j];
+            $client->connectedSince = new \DateTime($fields[4+$j], clone($this->srcTimeZone));
 
             $clients[] = $client;
         }
@@ -75,13 +104,20 @@ class Status {
     }
 
     private function parseRouting ($string) {
+        
+        if ($this->statusVersion === 1) {
+            $i = 0;
+        } else {
+            $i = 1;
+        }
+
         $routingLines = preg_split('/\n|\r\n?/', trim($string));
 
         foreach ($routingLines as $routingLine) {
             $fields = str_getcsv($routingLine);
-            $ip = $fields[0];
-            $name = $fields[1];
-            $dateTime = new \DateTime($fields[3], clone($this->srcTimeZone));
+            $ip = $fields[0+$i];
+            $name = $fields[1+$i];
+            $dateTime = new \DateTime($fields[3+$i], clone($this->srcTimeZone));
 
             $client = $this->findClient($name);
             if ($client) {
