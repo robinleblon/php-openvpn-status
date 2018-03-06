@@ -1,5 +1,5 @@
 <?php
-require_once 'parser.php';
+include(__DIR__ . '/bootstrap.php');
 
 $file = <<<LOGFILE
 OpenVPN CLIENT LIST
@@ -22,12 +22,12 @@ Max bcast/mcast queue length,1
 END
 LOGFILE;
 
-$status = new OpenVPNStatus();
+$status = new \OpenVPN\Status();
 $status->loadFromString($file);
 $status->parse();
 print_r($status->getClients());
 
 foreach($status->getClients() as $client) {
     echo $client->name . PHP_EOL;
-    print_r($client->getReadableArray());
+    print("<pre>".print_r($client->getReadableArray(),true)."</pre>");
 }
